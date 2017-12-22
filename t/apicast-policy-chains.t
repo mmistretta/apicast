@@ -62,6 +62,7 @@ yay, api backend
 --- error_log chomp
 running phase: rewrite
 running phase: access
+running phase: content
 running phase: balancer
 running phase: header_filter
 running phase: body_filter

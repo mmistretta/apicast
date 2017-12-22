@@ -43,7 +43,7 @@ function _M.ctx_ref()
     return ctx_ref
   end
 
-  return ctx_ref
+  return ref_in_table(ctxs, ctx)
 end
 
 function _M.ctx(ref)
@@ -58,11 +58,13 @@ function _M.ctx(ref)
     return
   end
 
-  if C.ngx_http_lua_ffi_set_ctx_ref(r, ctx_ref) ~= FFI_OK then
-    return nil
-  end
+  local ctxs = registry.ngx_lua_ctx_tables
+  local origin_ngx_ctx = ctxs[ctx_ref]
+  ngx.ctx = origin_ngx_ctx
 
-  return true
+  local FREE_LIST_REF = 0
+  ctxs[ctx_ref] = ctxs[FREE_LIST_REF]
+  ctxs[FREE_LIST_REF] = ctx_ref
 end
 
 return _M

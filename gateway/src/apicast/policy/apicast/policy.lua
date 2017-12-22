@@ -3,6 +3,7 @@ local math = math
 local setmetatable = setmetatable
 
 local user_agent = require('apicast.user_agent')
+local exec = require('resty.exec')
 
 local noop = function() end
 
@@ -99,6 +100,11 @@ function _M:access(context)
   end
 
   return ok, err
+end
+
+_M.content = function()
+  ngx.var.ctx_ref = exec.ctx_ref()
+  ngx.exec("@upstream")
 end
 
 _M.body_filter = noop

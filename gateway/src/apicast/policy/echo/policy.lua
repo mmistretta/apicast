@@ -19,7 +19,7 @@ function _M.new(configuration)
   return policy
 end
 
-function _M:content()
+function _M.content()
   ngx.say(ngx.var.request)
 end
 

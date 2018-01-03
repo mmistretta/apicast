@@ -33,6 +33,8 @@ function _M.ctx_ref()
     return error("no request ctx found")
   end
 
+  -- TODO: store the extra reference, so the original can't be GCd
+
   return ctx_ref
 end
 
@@ -48,7 +50,7 @@ function _M.ctx(ref)
     return
   end
 
-  return registry.ngx_lua_ctx_tables[ctx_ref]
+  return registry.ngx_lua_ctx_tables[ctx_ref] or error("no request ctx found")
 end
 
 return _M

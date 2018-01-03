@@ -80,12 +80,13 @@ end
 
 function _M:access(context)
   local p = ngx.ctx.proxy
-  ngx.ctx.service = context.service
   local post_action_proxy = self.post_action_proxy
 
-  if not post_action_proxy then
+  if not post_action_proxy or not p then
     return nil, 'not initialized'
   end
+
+  ngx.ctx.service = context.service
 
   local access, handler = p:call(context.service) -- proxy:access() or oauth handler
 
@@ -104,7 +105,10 @@ end
 
 _M.content = function()
   ngx.var.ctx_ref = exec.ctx_ref()
-  ngx.exec("@upstream")
+
+  if not ngx.headers_sent then
+    ngx.exec("@upstream")
+  end
 end
 
 _M.body_filter = noop

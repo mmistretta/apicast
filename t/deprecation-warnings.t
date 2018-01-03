@@ -15,9 +15,9 @@ APIcast should emit deprecation warnings when loading code using the old paths.
       "backend_version": 1,
       "proxy": {
         "policy_chain": [
-	  { "name": "policy.echo" },
-	  { "name": "apicast" }
-	]
+	        { "name": "policy.echo", "configuration": { "exit": "phase" } },
+	        { "name": "apicast" }
+	    ]
       }
     }
   ]

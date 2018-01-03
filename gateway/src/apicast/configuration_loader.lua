@@ -55,7 +55,7 @@ local function ttl()
 end
 
 function _M.global(contents)
-  local context = require('apicast.executor'):context()
+  local context = require('apicast.executor'):context('init')
 
   return _M.configure(context.configuration, contents)
 end

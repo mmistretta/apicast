@@ -125,7 +125,7 @@ local function output_debug_headers(service, usage, credentials)
   end
 end
 
-function _M:authorize(service, usage, credentials, ttl)
+function _M:authorize(service, usage, credentials, ttl, update_cache_func)
   local encoded_usage = encode_args(usage)
   if encoded_usage == '' then
     return error_no_match(service)
@@ -151,7 +151,8 @@ function _M:authorize(service, usage, credentials, ttl)
     local backend = assert(backend_client:new(service, http_ng_ngx), 'missing backend')
     local res = backend:authrep(usage, credentials)
 
-    local authorized, rejection_reason = self:handle_backend_response(cached_key, res, ttl)
+    local authorized, rejection_reason = self:handle_backend_response(
+      cached_key, res, ttl, update_cache_func)
     if not authorized then
       if rejection_reason == 'limits_exceeded' then
         return error_limits_exceeded(service)
@@ -212,7 +213,7 @@ end
 -- @tparam service service service object
 -- @treturn nil|function access function (when the request needs to be authenticated with this)
 -- @treturn nil|function handler function (when the request is not authenticated and has some own action)
-function _M:call(service)
+function _M:call(service, update_cache_func)
   service = _M.set_service(service or ngx.ctx.service)
 
   self.oauth = service:oauth()
@@ -231,11 +232,11 @@ function _M:call(service)
 
   return function()
     -- call access phase
-    return self:access(service)
+    return self:access(service, update_cache_func)
   end
 end
 
-function _M:access(service)
+function _M:access(service, update_cache_func)
   ngx.var.secret_token = service.secret_token
 
   local credentials, err = service:extract_credentials()
@@ -287,7 +288,7 @@ function _M:access(service)
     ctx.credentials = credentials
   end
 
-  return self:authorize(service, usage_params, credentials, ttl)
+  return self:authorize(service, usage_params, credentials, ttl, update_cache_func)
 end
 
 local function response_codes_data()
@@ -314,14 +315,14 @@ local function post_action(_, self, cached_key, backend, ...)
   self:handle_backend_response(cached_key, res)
 end
 
-local function capture_post_action(self, cached_key, service)
+local function capture_post_action(self, cached_key, service, update_cache_func)
   local backend = assert(backend_client:new(service, http_ng_ngx), 'missing backend')
   local res = backend:authrep(self.usage, self.credentials, response_codes_data())
 
-  self:handle_backend_response(cached_key, res)
+  self:handle_backend_response(cached_key, res, nil, update_cache_func)
 end
 
-local function timer_post_action(self, cached_key, service)
+local function timer_post_action(self, cached_key, service, update_cache_func)
   local backend = assert(backend_client:new(service), 'missing backend')
 
   local ok, err = timers:wait(10)
@@ -332,11 +333,11 @@ local function timer_post_action(self, cached_key, service)
     ngx.timer.at(0, post_action, self, cached_key, backend, self.usage, self.credentials, response_codes_data())
   else
     ngx.log(ngx.ERR, 'failed to acquire timer: ', err)
-    return capture_post_action(self, cached_key, service)
+    return capture_post_action(self, cached_key, service, update_cache_func)
   end
 end
 
-function _M:post_action(force)
+function _M:post_action(force, update_cache_func)
   if not using_post_action and not force then
     return nil, 'post action not needed'
   end
@@ -350,9 +351,9 @@ function _M:post_action(force)
     local service = ngx.ctx.service or self.configuration:find_by_id(service_id)
 
     if using_post_action then
-      capture_post_action(self, cached_key, service)
+      capture_post_action(self, cached_key, service, update_cache_func)
     else
-      timer_post_action(self, cached_key, service)
+      timer_post_action(self, cached_key, service, update_cache_func)
     end
   else
     ngx.log(ngx.INFO, '[async] skipping after action, no cached key')
@@ -367,10 +368,18 @@ local function rejection_reason(response_headers)
   return response_headers and response_headers['3scale-rejection-reason']
 end
 
-function _M:handle_backend_response(cached_key, response, ttl)
+function _M:update_cache(cache, cached_key, response, ttl, update_cache_func)
+  if update_cache_func then
+    update_cache_func(cache, cached_key, response, ttl)
+  else
+    self.cache_handler(cache, cached_key, response, ttl)
+  end
+end
+
+function _M:handle_backend_response(cached_key, response, ttl, update_cache_func)
   ngx.log(ngx.DEBUG, '[backend] response status: ', response.status, ' body: ', response.body)
 
-  self.cache_handler(self.cache, cached_key, response, ttl)
+  self:update_cache(self.cache, cached_key, response, ttl, update_cache_func)
 
   local authorized = (response.status == 200)
   local unauthorized_reason = not authorized and rejection_reason(response.headers)

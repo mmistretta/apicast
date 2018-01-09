@@ -57,7 +57,7 @@ function _M:rewrite(context)
   ngx.ctx.proxy = p
 end
 
-function _M:post_action()
+function _M:post_action(context)
   local request_id = ngx.var.original_request_id
   local post_action_proxy = self.post_action_proxy
 
@@ -70,7 +70,8 @@ function _M:post_action()
   post_action_proxy[request_id] = nil
 
   if p then
-    return p:post_action()
+    local update_cache_func = context and context.update_cache_func
+    return p:post_action(false, update_cache_func)
   else
     ngx.log(ngx.INFO, 'could not find proxy for request id: ', request_id)
     return nil, 'no proxy for request'
@@ -86,7 +87,10 @@ function _M:access(context)
     return nil, 'not initialized'
   end
 
-  local access, handler = p:call(context.service) -- proxy:access() or oauth handler
+  local update_cache_func = context.update_cache_func
+
+  -- proxy:access() or oauth handler
+  local access, handler = p:call(context.service, update_cache_func)
 
   local ok, err
 

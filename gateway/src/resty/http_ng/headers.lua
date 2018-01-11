@@ -11,6 +11,7 @@ local lower = string.lower
 local upper = string.upper
 local sub = string.sub
 local ngx_re = ngx.re
+local re_gsub = ngx_re.gsub
 
 local normalize_exceptions = {
   etag = 'ETag'
@@ -31,7 +32,19 @@ local capitalize = function(string)
   return upper(sub(string, 1, 1)) .. sub(string, 2)
 end
 
+local capital = function(m)
+  return upper(m[0])
+end
+
 local regex_parts = [[[^_-]+]]
+local letter = [[\b([a-z])]]
+
+local capitalize_header = function(key)
+  key = re_gsub(key, '_', '-', 'jo')
+  key = re_gsub(key, letter, capital, 'jo')
+
+  return key
+end
 
 local key_parts_capitalized = function(key)
   local parts = {}
@@ -50,7 +63,7 @@ headers.normalize_key = function(key)
     return exception
   end
 
-  return concat(key_parts_capitalized(key), '-')
+  return capitalize_header(key)
 end
 
 local header_mt = {

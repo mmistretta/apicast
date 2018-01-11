@@ -1,3 +1,5 @@
+local find = string.find
+local sub = string.sub
 local match = string.match
 local assert = assert
 local setmetatable = setmetatable
@@ -19,12 +21,21 @@ local request = { }
 
 request.headers = require 'resty.http_ng.headers'
 
+local function extract_host(url)
+  local _, last = find(url, '://', 0, true)
+  local len = find(url, '/', last + 1, true)
+
+  if len then len = len - 1 end
+
+  return sub(url, last + 1, len)
+end
+
 function request.extract_headers(req)
   local options = req.options or {}
   local headers = request.headers.new(options.headers)
 
   headers.user_agent = headers.user_agent or 'APIcast (+https://www.apicast.io)'
-  headers.host = headers.host or match(req.url, "^.+://([^/]+)")
+  headers.host = headers.host or extract_host(req.url)
   headers.connection = headers.connection or 'Keep-Alive'
 
   options.headers = nil
